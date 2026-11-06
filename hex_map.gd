@@ -14,6 +14,7 @@ const DIRECTIONS: Array[Vector2i] = [
 ]
 
 const SELECTED_COLOR := Color.CORNFLOWER_BLUE
+const HOVER_COLOR := Color(0.85, 0.9, 1.0)
 
 ## Anzahl der Felder, die vom Mittelfeld in jede Richtung ausgehen.
 @export var radius: int = 3
@@ -26,6 +27,8 @@ const SELECTED_COLOR := Color.CORNFLOWER_BLUE
 var tiles: Dictionary[Vector2i, Sprite2D] = {}
 ## Aktuell markierte Felder (maximal zwei: Feld 1 und Feld 2).
 var selected: Array[Vector2i] = []
+## Feld unter dem Mauszeiger, oder null.
+var hovered: Variant = null
 
 var _tile_size: Vector2
 
@@ -42,6 +45,27 @@ func _unhandled_input(event: InputEvent) -> void:
 		var hex := pixel_to_axial(get_local_mouse_position())
 		if has_tile(hex):
 			select_tile(hex)
+	elif event is InputEventMouseMotion:
+		set_hovered(pixel_to_axial(get_local_mouse_position()))
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_MOUSE_EXIT:
+		set_hovered(null)
+
+
+## Setzt das Feld unter dem Mauszeiger (null bzw. Koordinate außerhalb = keins).
+func set_hovered(hex: Variant) -> void:
+	if hex != null and not has_tile(hex):
+		hex = null
+	if hex == hovered:
+		return
+	var previous: Variant = hovered
+	hovered = hex
+	if previous != null:
+		_update_tile_color(previous)
+	if hovered != null:
+		_update_tile_color(hovered)
 
 
 ## Markiert ein Feld. Es sind höchstens zwei Felder gleichzeitig markiert:
@@ -50,16 +74,27 @@ func select_tile(hex: Vector2i) -> void:
 	if selected.size() >= 2:
 		clear_selection()
 	selected.append(hex)
-	tiles[hex].modulate = SELECTED_COLOR
+	_update_tile_color(hex)
 	print("Feld %d: (q=%d, r=%d, s=%d)" % [selected.size(), hex.x, hex.y, -hex.x - hex.y])
 	if selected.size() == 2:
 		print("Distanz zwischen Feld 1 und Feld 2: %d" % distance(selected[0], selected[1]))
 
 
 func clear_selection() -> void:
-	for hex in selected:
-		tiles[hex].modulate = Color.WHITE
+	var previous := selected.duplicate()
 	selected.clear()
+	for hex in previous:
+		_update_tile_color(hex)
+
+
+## Angeklickte Felder sind kräftig blau, das Feld unter der Maus hellblau, alle anderen weiß.
+func _update_tile_color(hex: Vector2i) -> void:
+	if hex in selected:
+		tiles[hex].modulate = SELECTED_COLOR
+	elif hex == hovered:
+		tiles[hex].modulate = HOVER_COLOR
+	else:
+		tiles[hex].modulate = Color.WHITE
 
 
 ## Erzeugt alle Felder innerhalb von `radius` um das Mittelfeld (0, 0).
@@ -77,6 +112,7 @@ func clear_map() -> void:
 		tile.queue_free()
 	tiles.clear()
 	selected.clear()
+	hovered = null
 
 
 func has_tile(hex: Vector2i) -> bool:
