@@ -13,6 +13,8 @@ const DIRECTIONS: Array[Vector2i] = [
 	Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1),
 ]
 
+const SELECTED_COLOR := Color.CORNFLOWER_BLUE
+
 ## Anzahl der Felder, die vom Mittelfeld in jede Richtung ausgehen.
 @export var radius: int = 3
 ## Skalierung der Felder (0.8 sorgt dafür, dass das Feld ins Standardfenster passt).
@@ -22,6 +24,8 @@ const DIRECTIONS: Array[Vector2i] = [
 
 ## Alle Felder des Spielfelds, Schlüssel ist die axiale Koordinate (q, r).
 var tiles: Dictionary[Vector2i, Sprite2D] = {}
+## Aktuell markierte Felder (maximal zwei: Feld 1 und Feld 2).
+var selected: Array[Vector2i] = []
 
 var _tile_size: Vector2
 
@@ -34,13 +38,28 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Test: Angeklicktes Feld einfärben und seine Koordinate ausgeben.
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		var hex := pixel_to_axial(get_local_mouse_position())
 		if has_tile(hex):
-			var tile := tiles[hex]
-			tile.modulate = Color.WHITE if tile.modulate != Color.WHITE else Color.CORNFLOWER_BLUE
-			print("Hex (q=%d, r=%d, s=%d), Abstand zur Mitte: %d" % [hex.x, hex.y, -hex.x - hex.y, distance(hex, Vector2i.ZERO)])
+			select_tile(hex)
+
+
+## Markiert ein Feld. Es sind höchstens zwei Felder gleichzeitig markiert:
+## Ein dritter Klick hebt die bisherige Auswahl auf und beginnt eine neue.
+func select_tile(hex: Vector2i) -> void:
+	if selected.size() >= 2:
+		clear_selection()
+	selected.append(hex)
+	tiles[hex].modulate = SELECTED_COLOR
+	print("Feld %d: (q=%d, r=%d, s=%d)" % [selected.size(), hex.x, hex.y, -hex.x - hex.y])
+	if selected.size() == 2:
+		print("Distanz zwischen Feld 1 und Feld 2: %d" % distance(selected[0], selected[1]))
+
+
+func clear_selection() -> void:
+	for hex in selected:
+		tiles[hex].modulate = Color.WHITE
+	selected.clear()
 
 
 ## Erzeugt alle Felder innerhalb von `radius` um das Mittelfeld (0, 0).
@@ -57,6 +76,7 @@ func clear_map() -> void:
 	for tile in tiles.values():
 		tile.queue_free()
 	tiles.clear()
+	selected.clear()
 
 
 func has_tile(hex: Vector2i) -> bool:
