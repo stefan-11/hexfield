@@ -15,9 +15,12 @@ const DIRECTIONS: Array[Vector2i] = [
 
 const SELECTED_COLOR := Color.CORNFLOWER_BLUE
 const HOVER_COLOR := Color(0.85, 0.9, 1.0)
+const OUT_OF_RANGE_COLOR := Color(1.0, 0.8, 0.8)
 
 ## Anzahl der Felder, die vom Mittelfeld in jede Richtung ausgehen.
 @export var radius: int = 3
+## Wie viele Felder der Spieler von Feld 1 aus laufen darf.
+@export var move_range: int = 3
 ## Skalierung der Felder (0.8 sorgt dafür, dass das Feld ins Standardfenster passt).
 @export var tile_scale: float = 1
 ## Platziert das Spielfeld beim Start in der Mitte des Viewports.
@@ -72,7 +75,16 @@ func set_hovered(hex: Variant) -> void:
 
 ## Markiert ein Feld. Es sind höchstens zwei Felder gleichzeitig markiert:
 ## Ein dritter Klick hebt die bisherige Auswahl auf und beginnt eine neue.
+## Feld 2 muss innerhalb von `move_range` Schritten von Feld 1 erreichbar sein.
+## Ein erneuter Klick auf Feld 1 wählt es wieder ab.
 func select_tile(hex: Vector2i) -> void:
+	if selected.size() == 1 and hex == selected[0]:
+		clear_selection()
+		print("Feld 1 abgewählt")
+		return
+	if selected.size() == 1 and not is_reachable(selected[0], hex):
+		print("Feld (q=%d, r=%d) ist außer Reichweite (maximal %d Felder)" % [hex.x, hex.y, move_range])
+		return
 	if selected.size() >= 2:
 		selected.clear()
 	selected.append(hex)
@@ -96,23 +108,33 @@ func find_path(from: Vector2i, to: Vector2i) -> Array[Vector2i]:
 	return result
 
 
+## Ob `to` von `from` aus in höchstens `move_range` Schritten erreichbar ist.
+func is_reachable(from: Vector2i, to: Vector2i) -> bool:
+	var steps := find_path(from, to).size() - 1
+	return steps >= 0 and steps <= move_range
+
+
 ## Berechnet den angezeigten Pfad neu und färbt alle Felder ein:
 ## angeklickte Felder und der fertige Pfad kräftig blau,
-## Pfad-Vorschau und Feld unter der Maus hellblau, alle anderen weiß.
+## Pfad-Vorschau und Feld unter der Maus hellblau (hellrot, wenn außer Reichweite),
+## alle anderen weiß.
 func _update_highlights() -> void:
 	path.clear()
 	if selected.size() == 2:
 		path = find_path(selected[0], selected[1])
 	elif selected.size() == 1 and hovered != null:
 		path = find_path(selected[0], hovered)
-	var path_color := SELECTED_COLOR if selected.size() == 2 else HOVER_COLOR
+	var hover_color := HOVER_COLOR
+	if selected.size() == 1 and hovered != null and not is_reachable(selected[0], hovered):
+		hover_color = OUT_OF_RANGE_COLOR
+	var path_color := SELECTED_COLOR if selected.size() == 2 else hover_color
 	for hex in tiles:
 		if hex in selected:
 			tiles[hex].modulate = SELECTED_COLOR
 		elif hex in path:
 			tiles[hex].modulate = path_color
 		elif hex == hovered:
-			tiles[hex].modulate = HOVER_COLOR
+			tiles[hex].modulate = hover_color
 		else:
 			tiles[hex].modulate = Color.WHITE
 
